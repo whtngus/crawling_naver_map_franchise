@@ -66,9 +66,13 @@ class KakaoAPIManager:
                 os.makedirs(self.progress_file_path, exist_ok=True)
                 data.to_csv(save_path, index=False, encoding="utf-8-sig")
             else:
-                existing_data = pd.read_csv(save_path)
-                updated_data = pd.concat([existing_data, data]).drop_duplicates(['id'])
-                updated_data.to_csv(save_path, index=False, encoding="utf-8-sig")
+                try:
+                    existing_data = pd.read_csv(save_path)
+                    updated_data = pd.concat([existing_data, data]).drop_duplicates(['id'])
+                    updated_data.to_csv(save_path, index=False, encoding="utf-8-sig")
+                except Exception as e:
+                    # 깨진 파일인경우 overwrite
+                    data.to_csv(save_path, index=False, encoding="utf-8-sig")
 
     def _load_progress(self):
         """
@@ -119,7 +123,7 @@ class KakaoAPIManager:
         docs = result['documents']
         if len(docs) < 15:
             return True
-        if gu_name and len(docs) > 0:
+        if gu_name:
             last_addr = docs[-1]['address_name']
             if gu_name not in last_addr:
                 return True
@@ -144,7 +148,9 @@ class KakaoAPIManager:
 
         print(f"[INFO] 총 수집 대상: {len(tasks)} / 전체 {total_target_count}")
 
-        # 전체 진행률을 보고 싶을 때
+        # 에러 확인을 위해 하나씩 디버깅 필요 시
+        # for idx, store_name in tasks:
+        #     self._collect_and_save_store(store_name, idx, total_target_count)
         with tqdm(total=len(tasks), desc="전체 진행 상황") as pbar:
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                 future_to_store = {
@@ -196,22 +202,24 @@ class KakaoAPIManager:
         elif total_count <= 45:
             print(f" => 45건 이하, 단순 전체 검색 (1~3페이지)")
             results = self.collect_data_by_region(store_name, '', start_page=2, max_pages=3)
-            # 첫 페이지는 이미 작업 오나료
-            results = first_result + results
+            # 첫 페이지는 이미 작업 완료
+            results = [first_result] + results
             all_collected.extend(results)
-        elif total_count <= 1000:
-            print(f" => 1000건 이하, 구 단위 검색")
-            for gu, only_gu in zip(self.gu_list, self.only_gu_list):
-                gu_keyword = f"{gu} {store_name}"
-                gu_results = self.collect_data_by_region(gu_keyword, only_gu, max_pages=3)
-                all_collected.extend(gu_results)
         else:
-            print(f" => 1000건 초과, 동 단위 검색")
-            for dong, only_gu in zip(self.dong_list, self.only_gu_dong_list):
-                dong_keyword = f"{dong} {store_name}"
-                dong_results = self.collect_data_by_region(dong_keyword, only_gu, max_pages=3)
-                if dong_results:
-                    all_collected.extend(dong_results)
+            print(f" => 45건 초과, 구, 동 단위 검색")
+            for gu, value in self.guso_index.items():
+                gu_keyword = value['gu']
+                only_gu = value['only_gu']
+                first_result = self.get_places(store_name + ' ' + gu_keyword, page=1)
+                # 구 단위로 검색 후 45건 이상인 경우 동단위 검색
+                if first_result['meta']['total_count'] <= 45:
+                    gu_results = self.collect_data_by_region(store_name, gu_keyword, gu_name=only_gu,  start_page=2, max_pages=3)
+                    all_collected.extend([first_result] + gu_results)
+                else: # 동 단위 검색
+                    for dong_keyword in value['dong']:
+                        dong_results = self.collect_data_by_region(store_name, dong_keyword, gu_name=only_gu,max_pages=3)
+                        if dong_results:
+                            all_collected.extend(dong_results)
 
         all_collected_df = self.data_transform(all_collected)
         return all_collected_df
@@ -231,7 +239,7 @@ class KakaoAPIManager:
         df = pd.DataFrame(new_data)
         return df
 
-    def collect_data_by_region(self, keyword, region, gu_name='', start_page=1, max_pages=3):
+    def collect_data_by_region(self, keyword, region, gu_name=None, start_page=1, max_pages=3):
         """
         특정 지역 + 키워드를 가지고, 최대 max_pages까지 반복하여 검색
         """
