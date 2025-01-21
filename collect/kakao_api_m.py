@@ -90,7 +90,7 @@ class KakaoAPIManager:
         with self.api_key_lock:
             self.api_index += 1
             if self.api_index >= len(self.api_keys):
-                raise Exception("모든 API 키 소진")
+                raise Exception(987, "모든 API 키 소진")
             print(f"[API KEY ROTATE] {self.api_keys[self.api_index - 1]} -> {self.api_keys[self.api_index]}")
             self.headers = {"Authorization": f"KakaoAK {self.api_keys[self.api_index]}"}
     def get_places(self, keyword, page=1):
@@ -112,6 +112,8 @@ class KakaoAPIManager:
                 raise
         except Exception as e:
             print(f"[API 요청 실패] {e}")
+            if e.args[0] == 987:
+                raise Exception(987, "모든 API 키 소진")
             raise
 
     def check_stop(self, result, gu_name=None):
@@ -161,7 +163,9 @@ class KakaoAPIManager:
                 for future in concurrent.futures.as_completed(future_to_store):
                     store_name, idx = future_to_store[future]
                     try:
-                        _ = future.result()
+                        result = future.result()
+                        if type(result) == str and result == '모든 API 키 소진':
+                            raise "모든 apikey  소진"
                     except Exception as exc:
                         print(f"[ERROR] {store_name} (index:{idx}) 수집 실패: {exc}")
                     finally:
@@ -174,15 +178,19 @@ class KakaoAPIManager:
         """
         개별 스레드에서 실행되는 함수.
         """
-        print(f"[START] {store_name} (index:{target_index}/{total_target_count}) 수집 시작")
-        result_df = self.collect_stores(store_name)
-        rd_len = len(result_df)
-        result_df.drop_duplicates(['id'], inplace=True)
-        print(f"[DE-DUP] {store_name} 중복 제거 {rd_len} -> {len(result_df)}")
+        try:
+            print(f"[START] {store_name} (index:{target_index}/{total_target_count}) 수집 시작")
+            result_df = self.collect_stores(store_name)
+            rd_len = len(result_df)
+            result_df.drop_duplicates(['id'], inplace=True)
+            print(f"[DE-DUP] {store_name} 중복 제거 {rd_len} -> {len(result_df)}")
 
-        self._save_progress(result_df, store_name)
-        print(f"[SAVED] {store_name} - 데이터 저장 완료")
-        return result_df
+            self._save_progress(result_df, store_name)
+            print(f"[SAVED] {store_name} - 데이터 저장 완료")
+            return result_df
+        except Exception as e:
+            if e.args[0] == 987:
+                return "모든 API 키 소진"
 
     def collect_stores(self, store_name):
         """
