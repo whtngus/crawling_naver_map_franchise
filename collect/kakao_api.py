@@ -80,19 +80,20 @@ class KakaoAPIManager:
         progressed = [os.path.basename(i).rstrip('.csv') for i in save_path_list]
         return progressed
 
-    def rotate_api_key(self):
+    def rotate_api_key(self, old_index):
         """
         API Key를 순환하며 소진 시 다음 키로 변경.
         여러 스레드에서 동시에 접근할 수 있으므로 Lock
         """
         with self.api_key_lock:
-            self.api_index += 1
             if self.api_index >= len(self.api_keys):
                 # 987 예외를 발생시켜서 상위에서 중단하도록 유도
                 raise Exception(987, "모든 API 키 소진")
-
-            print(f"[API KEY ROTATE] {self.api_keys[self.api_index - 1]} -> {self.api_keys[self.api_index]}")
-            self.headers = {"Authorization": f"KakaoAK {self.api_keys[self.api_index]}"}
+            if old_index == self.api_index:
+                # 멀티스레드 대비 실제 rotate 해야되는 api 키와 현재 인덱스가 같은 경우
+                self.api_index += 1
+                print(f"[API KEY ROTATE] {self.api_keys[self.api_index - 1]} -> {self.api_keys[self.api_index]}")
+                self.headers = {"Authorization": f"KakaoAK {self.api_keys[self.api_index]}"}
 
     def get_places(self, keyword, page=1):
         """
@@ -101,13 +102,14 @@ class KakaoAPIManager:
         url = "https://dapi.kakao.com/v2/local/search/keyword.json"
         params = {"query": keyword, "page": page}
         try:
+            old_index = self.api_index
             response = requests.get(url, params=params, headers=self.headers)
             self.counts += 1
             if response.status_code == 200:
                 return response.json()
             elif response.status_code == 429 or response.text == '{"errorType":"RequestThrottled","message":"API limit has been exceeded."}':
                 # API Limit 초과로 인해 인증 실패 시 -> 키 변경
-                self.rotate_api_key()
+                self.rotate_api_key(old_index)
                 return self.get_places(keyword, page)
             else:
                 print(f"[Error {response.status_code}]: {response.text}")
