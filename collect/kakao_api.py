@@ -49,10 +49,33 @@ class KakaoAPIManager:
                     'dong': [f"{sido} {gu} {dong}"]
                 }
 
-    def _name_change(self, name):
-        filtered_text = re.sub(r"[^가-힣0-9a-zA-Z]", "", name)
-        return filtered_text
+    import re
 
+    def _name_change(self, name):
+        # Step 1: 괄호 () 안의 내용 추출
+        name = name.replace('(주)','')
+        match = re.search(r"\(([^)]+)\)", name)
+        if match:
+            inside_bracket = match.group(1)  # 괄호 안 텍스트
+            before_bracket_match = re.search(r"(\S+)\s*\([^)]*\)", name)
+
+            if before_bracket_match:
+                before_bracket = before_bracket_match.group(1)  # 괄호 앞 단어
+
+                # 영어 개수 비교
+                before_eng_count = sum(1 for c in before_bracket if c.isalpha())
+                inside_eng_count = sum(1 for c in inside_bracket if c.isalpha())
+
+                # 영어가 더 많은 쪽을 제거하고, 영어가 적은 쪽을 유지
+                if inside_eng_count > before_eng_count:
+                    name = name.replace(f"({inside_bracket})", "").strip()
+                else:
+                    name = name.replace(before_bracket, "").replace(f"({inside_bracket})", inside_bracket).strip()
+
+        # Step 2: 한글, 숫자, 영어만 남기기
+        filtered_text = re.sub(r"[^가-힣0-9a-zA-Z\s]", "", name)
+
+        return filtered_text
     def _save_progress(self, data, store_name):
         """
         수집한 데이터를 진행 상황에 저장.
