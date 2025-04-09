@@ -22,7 +22,7 @@
 단, 시 동 구 정부의 변동이 없는경우 기존 데이터를 그대로 사용
 
 > 예시 데이터
-> ```commandline
+> ```
 SIDO_NM	SIGUNGU_NM	GU_NM	DONG_NM
 경기	고양시	일산동구	장항1동
 경기	안산시	단원구	신길동
@@ -32,7 +32,7 @@ SIDO_NM	SIGUNGU_NM	GU_NM	DONG_NM
 ```
 
 > 데이터 추출 방법 
-> ```commandline
+> ```
 SELECT DISTINCT
  GDS_WID_TRL_NM AS SICO_NM
  , GDS_DSR_NM AS SIGUNGU_NM
@@ -43,7 +43,7 @@ FROM SWOAE0019
 
 - 새로운 경로에 데이터를 저장시 수정 방법
 > main.py에서 guso_path="새로운데이터 경로" 를 변경한 경로로 수정 
-> ```commandline
+> ```
 kakao_api = KakaoAPIManager(progress_file_path='./save_data/', guso_path="새로운데이터 경로")
 ```
 
@@ -56,7 +56,7 @@ kakao_api = KakaoAPIManager(progress_file_path='./save_data/', guso_path="새로
 > 2. 링크내에 있는 모든 데이터 드래그 하여 복사 및 붙여넣기 하여 tsv 파일로 저장 
 
 > 예시 데이터
-> ```commandline
+> ```
 번호	상호	영업표지	대표자	등록번호	최초등록일	업종
 12437	국민부대찌개법원점	국민부대찌개	김성환	20200609	2020.05.18	한식
 12436	(주)하루에프앤비	하루엔소쿠	한덕희	20160451	2016.05.16	일식
